@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import {
@@ -17,6 +18,7 @@ import {
 } from "recharts";
 
 function Home() {
+  const API_URL = "http://localhost:5000/api/groceries";
   const navigate = useNavigate();
 
   const [mode, setMode] = useState("Family");
@@ -51,7 +53,7 @@ function Home() {
     setListMode(selectedMode);
   };
 
-  const handleAddItem = (e) => {
+  const handleAddItem = async (e) => {
     e.preventDefault();
 
     if (!itemName || !quantity || !unit || !price) {
@@ -59,58 +61,74 @@ function Home() {
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      itemName: itemName.trim(),
-      quantity,
-      unit,
-      price,
-      mode,
-      date: formatDate(selectedDate),
-    };
+    try {
+      const newItem = {
+        itemName: itemName.trim(),
+        quantity: Number(quantity),
+        unit,
+        price: Number(price),
+        mode,
+        selectedDate: formatDate(selectedDate),
+      };
 
-    setItems((prev) => [newItem, ...prev]);
+      const response = await axios.post(API_URL, newItem);
 
-    setItemName("");
-    setQuantity("");
-    setUnit("kg");
-    setPrice("");
+      setItems((prev) => [response.data, ...prev]);
+
+      setItemName("");
+      setQuantity("");
+      setUnit("kg");
+      setPrice("");
+    } catch (error) {
+      console.error("Error adding grocery item:", error);
+      alert("Failed to add item");
+    }
   };
 
-  const handleDeleteItem = (id) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const handleDeleteItem = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/${id}`);
+      setItems((prev) => prev.filter((item) => item._id !== id));
+    } catch (error) {
+      console.error("Error deleting grocery item:", error);
+      alert("Failed to delete item");
+    }
   };
 
   const handleEditClick = (item) => {
-    setEditingId(item.id);
+    setEditingId(item._id);
     setEditName(item.itemName);
     setEditQuantity(item.quantity);
     setEditPrice(item.price);
   };
 
-  const handleSaveEdit = (id) => {
+  const handleSaveEdit = async (id) => {
     if (!editName || !editQuantity || !editPrice) {
       alert("Please fill all edit fields");
       return;
     }
 
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              itemName: editName.trim(),
-              quantity: editQuantity,
-              price: editPrice,
-            }
-          : item
-      )
-    );
+    try {
+      const updatedItem = {
+        itemName: editName.trim(),
+        quantity: Number(editQuantity),
+        price: Number(editPrice),
+      };
 
-    setEditingId(null);
-    setEditName("");
-    setEditQuantity("");
-    setEditPrice("");
+      const response = await axios.put(`${API_URL}/${id}`, updatedItem);
+
+      setItems((prev) =>
+        prev.map((item) => (item._id === id ? response.data : item))
+      );
+
+      setEditingId(null);
+      setEditName("");
+      setEditQuantity("");
+      setEditPrice("");
+    } catch (error) {
+      console.error("Error updating grocery item:", error);
+      alert("Failed to update item");
+    }
   };
 
   const handleCancelEdit = () => {
@@ -121,7 +139,7 @@ function Home() {
   };
 
   const filteredItems = items.filter((item) => {
-    const sameDate = item.date === formatDate(selectedDate);
+    const sameDate = item.selectedDate === formatDate(selectedDate);
     const sameMode = listMode === "All" ? true : item.mode === listMode;
     return sameDate && sameMode;
   });
@@ -132,7 +150,7 @@ function Home() {
     const today = formatDate(new Date());
 
     return items
-      .filter((item) => item.date === today)
+      .filter((item) => item.selectedDate === today)
       .reduce((sum, item) => sum + Number(item.price), 0);
   }, [items]);
 
@@ -143,7 +161,7 @@ function Home() {
 
     return items
       .filter((item) => {
-        const [day, month, year] = item.date.split("/").map(Number);
+        const [day, month, year] = item.selectedDate.split("/").map(Number);
         const itemDate = new Date(year, month - 1, day);
 
         return (
@@ -159,7 +177,7 @@ function Home() {
 
     return items
       .filter((item) => {
-        if (item.date !== formattedDate) return false;
+        if (item.selectedDate !== formattedDate) return false;
         if (listMode === "All") return true;
         return item.mode === listMode;
       })
@@ -180,10 +198,10 @@ function Home() {
           if (item.mode !== currentMode) return false;
 
           if (pieView === "Daily") {
-            return item.date === selectedDay;
+            return item.selectedDate === selectedDay;
           }
 
-          const [day, month, year] = item.date.split("/").map(Number);
+          const [day, month, year] = item.selectedDate.split("/").map(Number);
           const itemDate = new Date(year, month - 1, day);
 
           return (
@@ -213,7 +231,7 @@ function Home() {
         const formatted = formatDate(currentDate);
 
         const total = items
-          .filter((item) => item.date === formatted)
+          .filter((item) => item.selectedDate === formatted)
           .reduce((sum, item) => sum + Number(item.price), 0);
 
         return {
@@ -239,7 +257,7 @@ function Home() {
     ].map((monthName, monthIndex) => {
       const total = items
         .filter((item) => {
-          const [day, month, year] = item.date.split("/").map(Number);
+          const [day, month, year] = item.selectedDate.split("/").map(Number);
           const itemDate = new Date(year, month - 1, day);
 
           return (
@@ -255,6 +273,19 @@ function Home() {
       };
     });
   }, [items, graphView, selectedDate]);
+
+  useEffect(() => {
+    const fetchGroceries = async () => {
+      try {
+        const response = await axios.get(API_URL);
+        setItems(response.data);
+      } catch (error) {
+        console.error("Error fetching groceries:", error);
+      }
+    };
+
+    fetchGroceries();
+  }, []);
 
   return (
     <div className="home-page">
@@ -407,8 +438,8 @@ function Home() {
             <>
               <div className="item-list">
                 {visibleItems.map((item) => (
-                  <div className="item-row" key={item.id}>
-                    {editingId === item.id ? (
+                  <div className="item-row" key={item._id}>
+                    {editingId === item._id ? (
                       <>
                         <div className="item-edit-fields">
                           <input
@@ -437,7 +468,7 @@ function Home() {
                           <button
                             type="button"
                             className="action-btn update-btn"
-                            onClick={() => handleSaveEdit(item.id)}
+                            onClick={() => handleSaveEdit(item._id)}
                           >
                             Save
                           </button>
@@ -471,7 +502,7 @@ function Home() {
                           <button
                             type="button"
                             className="action-btn delete-btn"
-                            onClick={() => handleDeleteItem(item.id)}
+                            onClick={() => handleDeleteItem(item._id)}
                           >
                             Delete
                           </button>

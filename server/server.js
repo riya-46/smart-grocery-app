@@ -1,14 +1,21 @@
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+const dotenv = require("dotenv");
+const connectDB = require("./config/db");
+const groceryRoutes = require("./routes/groceryRoutes");
+
+dotenv.config();
+
+connectDB();
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/groceries", groceryRoutes);
 
 app.get("/", (req, res) => {
-  res.send("Backend is running");
+  res.send("Smart Grocery Backend Running...");
 });
 
 const PORT = process.env.PORT || 5000;
