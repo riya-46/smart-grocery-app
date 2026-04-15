@@ -17,6 +17,16 @@ function Login() {
       return;
     }
 
+     const storedUsername = localStorage.getItem("smartgrocery_username");
+     if (!storedUsername) {
+       const fallbackName = email.split("@")[0]?.trim();
+       if (fallbackName) {
+         localStorage.setItem("smartgrocery_username", fallbackName);
+       }
+     }
+
+    localStorage.setItem("smartgrocery_email", email.trim());
+
     navigate("/home");
   };
 
