@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 function Login() {
   const [isLogin, setIsLogin] = useState(true);
@@ -8,6 +9,11 @@ function Login() {
   const [password, setPassword] = useState("");
 
   const navigate = useNavigate();
+  const apiBaseUrl = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+  const AUTH_API_URL = `${
+    apiBaseUrl ||
+    (window.location.hostname === "localhost" ? "http://localhost:5000" : "")
+  }/api/auth`;
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -17,17 +23,26 @@ function Login() {
       return;
     }
 
-     const storedUsername = localStorage.getItem("smartgrocery_username");
-     if (!storedUsername) {
-       const fallbackName = email.split("@")[0]?.trim();
-       if (fallbackName) {
-         localStorage.setItem("smartgrocery_username", fallbackName);
-       }
-     }
+    const loginUser = async () => {
+      try {
+        const response = await axios.post(`${AUTH_API_URL}/login`, {
+          email: email.trim().toLowerCase(),
+          password,
+        });
 
-    localStorage.setItem("smartgrocery_email", email.trim());
+        localStorage.setItem("smartgrocery_token", response.data.token);
+        localStorage.setItem(
+          "smartgrocery_user",
+          JSON.stringify(response.data.user)
+        );
 
-    navigate("/home");
+        navigate("/home");
+      } catch (error) {
+        alert(error.response?.data?.message || "Login failed");
+      }
+    };
+
+    loginUser();
   };
 
   const handleRegister = (e) => {
@@ -38,13 +53,27 @@ function Login() {
       return;
     }
 
-    localStorage.setItem("smartgrocery_username", name.trim());
-    localStorage.setItem("smartgrocery_email", email.trim());
+    const registerUser = async () => {
+      try {
+        const response = await axios.post(`${AUTH_API_URL}/register`, {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+        });
 
-    alert("Account created successfully");
-    setIsLogin(true);
-    setEmail("");
-    setPassword("");
+        localStorage.setItem("smartgrocery_token", response.data.token);
+        localStorage.setItem(
+          "smartgrocery_user",
+          JSON.stringify(response.data.user)
+        );
+
+        navigate("/home");
+      } catch (error) {
+        alert(error.response?.data?.message || "Registration failed");
+      }
+    };
+
+    registerUser();
   };
 
   return (

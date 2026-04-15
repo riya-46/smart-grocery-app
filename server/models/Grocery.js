@@ -27,6 +27,17 @@ const grocerySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    ownerEmail: {
+      type: String,
+      default: undefined,
+      lowercase: true,
+      trim: true,
+    },
   },
   { timestamps: true }
 );

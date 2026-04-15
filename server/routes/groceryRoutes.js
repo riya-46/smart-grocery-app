@@ -1,11 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const Grocery = require("../models/Grocery");
+const { protect } = require("../middleware/authMiddleware");
+
+router.use(protect);
 
 // GET all groceries
 router.get("/", async (req, res) => {
   try {
-    const groceries = await Grocery.find().sort({ createdAt: -1 });
+    const groceries = await Grocery.find({ owner: req.user._id }).sort({
+      createdAt: -1,
+    });
     res.status(200).json(groceries);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -28,6 +33,8 @@ router.post("/", async (req, res) => {
       price,
       mode,
       selectedDate,
+      owner: req.user._id,
+      ownerEmail: req.user.email,
     });
 
     const savedGrocery = await newGrocery.save();
@@ -40,9 +47,19 @@ router.post("/", async (req, res) => {
 // PUT update grocery
 router.put("/:id", async (req, res) => {
   try {
-    const updatedGrocery = await Grocery.findByIdAndUpdate(
-      req.params.id,
-      req.body,
+    const updatePayload = {
+      itemName: req.body.itemName,
+      quantity: req.body.quantity,
+      price: req.body.price,
+    };
+
+    if (req.body.unit) {
+      updatePayload.unit = req.body.unit;
+    }
+
+    const updatedGrocery = await Grocery.findOneAndUpdate(
+      { _id: req.params.id, owner: req.user._id },
+      updatePayload,
       { new: true }
     );
 
@@ -59,7 +76,10 @@ router.put("/:id", async (req, res) => {
 // DELETE grocery
 router.delete("/:id", async (req, res) => {
   try {
-    const deletedGrocery = await Grocery.findByIdAndDelete(req.params.id);
+    const deletedGrocery = await Grocery.findOneAndDelete({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
     if (!deletedGrocery) {
       return res.status(404).json({ message: "Grocery item not found" });

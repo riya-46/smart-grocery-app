@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
+const authRoutes = require("./routes/authRoutes");
 const groceryRoutes = require("./routes/groceryRoutes");
 
 dotenv.config();
@@ -17,9 +18,11 @@ const allowedOrigins = (process.env.CLIENT_URL || "")
 app.use(
   cors({
     origin: allowedOrigins.length ? allowedOrigins : true,
+    credentials: true,
   })
 );
 app.use(express.json());
+app.use("/api/auth", authRoutes);
 app.use("/api/groceries", groceryRoutes);
 
 app.get("/api/health", (req, res) => {

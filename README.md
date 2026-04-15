@@ -21,6 +21,7 @@ Create these files before running locally:
 MONGO_URI=your_mongodb_connection_string
 PORT=5000
 CLIENT_URL=http://localhost:5173
+JWT_SECRET=replace_with_a_long_random_secret
 ```
 
 2. `client/.env`
@@ -82,3 +83,4 @@ Required Render environment variables:
 
 - `MONGO_URI`
 - `CLIENT_URL=https://your-vercel-frontend-url.vercel.app`
+- `JWT_SECRET=replace_with_a_long_random_secret`

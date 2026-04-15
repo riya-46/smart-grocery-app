@@ -27,6 +27,14 @@ function Home() {
   }/api/groceries`;
   const navigate = useNavigate();
   const rupeeSymbol = "\u20B9";
+  const authToken = localStorage.getItem("smartgrocery_token") || "";
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("smartgrocery_user") || "null");
+    } catch {
+      return null;
+    }
+  }, []);
 
   const [mode, setMode] = useState("Family");
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -49,9 +57,7 @@ function Home() {
   const [editQuantity, setEditQuantity] = useState("");
   const [editPrice, setEditPrice] = useState("");
 
-  const [username] = useState(
-    localStorage.getItem("smartgrocery_username") || "User"
-  );
+  const [username] = useState(currentUser?.name || "User");
 
   const highlightSequence = [1, 2, 1, 0];
   const activeHighlight = highlightSequence[highlightStep];
@@ -125,8 +131,19 @@ function Home() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("smartgrocery_token");
+    localStorage.removeItem("smartgrocery_user");
     navigate("/");
   };
+
+  const authConfig = useMemo(
+    () => ({
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    }),
+    [authToken]
+  );
 
   const handleAddItem = async (e) => {
     e.preventDefault();
@@ -137,6 +154,12 @@ function Home() {
     }
 
     try {
+      if (!authToken) {
+        alert("Please login again");
+        navigate("/");
+        return;
+      }
+
       const newItem = {
         itemName: itemName.trim(),
         quantity: Number(quantity),
@@ -146,7 +169,7 @@ function Home() {
         selectedDate: formatDate(selectedDate),
       };
 
-      const response = await axios.post(API_URL, newItem);
+      const response = await axios.post(API_URL, newItem, authConfig);
 
       setItems((prev) => [response.data, ...prev]);
 
@@ -162,7 +185,7 @@ function Home() {
 
   const handleDeleteItem = async (id) => {
     try {
-      await axios.delete(`${API_URL}/${id}`);
+      await axios.delete(`${API_URL}/${id}`, authConfig);
       setItems((prev) => prev.filter((item) => item._id !== id));
     } catch (error) {
       console.error("Error deleting grocery item:", error);
@@ -184,13 +207,19 @@ function Home() {
     }
 
     try {
+      if (!authToken) {
+        alert("Please login again");
+        navigate("/");
+        return;
+      }
+
       const updatedItem = {
         itemName: editName.trim(),
         quantity: Number(editQuantity),
         price: Number(editPrice),
       };
 
-      const response = await axios.put(`${API_URL}/${id}`, updatedItem);
+      const response = await axios.put(`${API_URL}/${id}`, updatedItem, authConfig);
 
       setItems((prev) =>
         prev.map((item) => (item._id === id ? response.data : item))
@@ -394,15 +423,25 @@ function Home() {
   useEffect(() => {
     const fetchGroceries = async () => {
       try {
-        const response = await axios.get(API_URL);
+        if (!authToken) {
+          navigate("/");
+          return;
+        }
+
+        const response = await axios.get(API_URL, authConfig);
         setItems(response.data);
       } catch (error) {
         console.error("Error fetching groceries:", error);
+        if (error.response?.status === 401) {
+          localStorage.removeItem("smartgrocery_token");
+          localStorage.removeItem("smartgrocery_user");
+          navigate("/");
+        }
       }
     };
 
     fetchGroceries();
-  }, [API_URL]);
+  }, [API_URL, authConfig, authToken, navigate]);
 
   useEffect(() => {
     const node = pieBoxRef.current;
