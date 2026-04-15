@@ -50,3 +50,35 @@ npm run dev
 - Backend exposes health check at `/api/health`.
 - Backend CORS uses `CLIENT_URL` and accepts comma-separated origins.
 - If frontend and backend are deployed on different domains, set both env files correctly before deployment.
+
+## Recommended Deployment
+
+- Frontend: Vercel
+- Backend: Render
+
+### Vercel Frontend
+
+Use the `client/` folder as the project root.
+
+- Framework preset: `Vite`
+- Root directory: `client`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable:
+  - `VITE_API_URL=https://your-render-backend-url.onrender.com`
+
+`client/vercel.json` is already added for React Router SPA rewrites.
+
+### Render Backend
+
+Use the included `render.yaml` blueprint from the repo root, or create a web service manually with:
+
+- Root directory: `server`
+- Build command: `npm install`
+- Start command: `npm start`
+- Health check path: `/api/health`
+
+Required Render environment variables:
+
+- `MONGO_URI`
+- `CLIENT_URL=https://your-vercel-frontend-url.vercel.app`
