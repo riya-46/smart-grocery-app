@@ -9,10 +9,26 @@ dotenv.config();
 connectDB();
 
 const app = express();
+const allowedOrigins = (process.env.CLIENT_URL || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
+app.use(
+  cors({
+    origin: allowedOrigins.length ? allowedOrigins : true,
+  })
+);
 app.use(express.json());
 app.use("/api/groceries", groceryRoutes);
+
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "smart-grocery-backend",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 app.get("/", (req, res) => {
   res.send("Smart Grocery Backend Running...");
