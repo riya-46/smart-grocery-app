@@ -55,19 +55,16 @@ function Login() {
 
     const registerUser = async () => {
       try {
-        const response = await axios.post(`${AUTH_API_URL}/register`, {
+        await axios.post(`${AUTH_API_URL}/register`, {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           password,
         });
-
-        localStorage.setItem("smartgrocery_token", response.data.token);
-        localStorage.setItem(
-          "smartgrocery_user",
-          JSON.stringify(response.data.user)
-        );
-
-        navigate("/home");
+        alert("Account created successfully. Please login to continue.");
+        setIsLogin(true);
+        setName("");
+        setEmail(email.trim().toLowerCase());
+        setPassword("");
       } catch (error) {
         alert(error.response?.data?.message || "Registration failed");
       }

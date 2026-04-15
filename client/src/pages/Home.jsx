@@ -131,6 +131,12 @@ function Home() {
   };
 
   const handleLogout = () => {
+    const shouldLogout = window.confirm("Are you sure you want to logout?");
+
+    if (!shouldLogout) {
+      return;
+    }
+
     localStorage.removeItem("smartgrocery_token");
     localStorage.removeItem("smartgrocery_user");
     navigate("/");

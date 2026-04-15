@@ -15,10 +15,10 @@ function AIHealthyFood() {
         </button>
 
         <span className="ai-page-kicker">AI Nutrition Companion</span>
-        <h1>Smart AI Healthy Food Suggestions</h1>
+        <h1>AI suggested healthy food items and recipes soon.</h1>
         <p>
-          This module is reserved for AI-powered recommendations, healthier
-          alternatives, recipe ideas, and nutrition-aware grocery guidance.
+          This section is reserved for future AI-powered recommendations,
+          healthier alternatives, and recipe guidance based on grocery choices.
         </p>
 
         <div className="ai-page-grid">
