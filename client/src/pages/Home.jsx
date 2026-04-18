@@ -48,7 +48,6 @@ function Home() {
   const [listMode, setListMode] = useState("Family");
   const [pieView, setPieView] = useState("Daily");
   const [graphView, setGraphView] = useState("Daily");
-  const [highlightStep, setHighlightStep] = useState(0);
   const pieBoxRef = useRef(null);
   const [pieBoxSize, setPieBoxSize] = useState({ width: 0, height: 0 });
 
@@ -58,9 +57,6 @@ function Home() {
   const [editPrice, setEditPrice] = useState("");
 
   const [username] = useState(currentUser?.name || "User");
-
-  const highlightSequence = [1, 2, 1, 0];
-  const activeHighlight = highlightSequence[highlightStep];
 
   const formatDate = (dateObj) => {
     return dateObj.toLocaleDateString("en-GB");
@@ -468,14 +464,6 @@ function Home() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setHighlightStep((current) => (current + 1) % highlightSequence.length);
-    }, 1000);
-
-    return () => window.clearInterval(intervalId);
-  }, [highlightSequence.length]);
-
   return (
     <div className="home-page">
       <section className="dashboard-hero">
@@ -486,16 +474,7 @@ function Home() {
         </div>
 
         <div className="dashboard-controlbar">
-          <div className="topbar-left">
-            <div className="mode-mini-card">
-              <span className="mini-label">Current Mode</span>
-              <strong className={`current-mode-value ${getModeClass(mode)}`}>
-                {mode}
-              </strong>
-            </div>
-          </div>
-
-          <div className="topbar-center">
+          <div className="mode-panel">
             <div className="mode-section">
               <button
                 className={`mode-btn mode-family ${
@@ -531,51 +510,73 @@ function Home() {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="dashboard-info-row">
+          <div className="topbar-left">
+            <div className="mode-mini-card">
+              <strong className={`current-mode-value ${getModeClass(mode)}`}>
+                {mode}
+              </strong>
+              <span className="mini-label">Current Mode</span>
+            </div>
+          </div>
+
+          <div className="topbar-ai">
+              <button
+                type="button"
+                className="ai-feature-card top-ai-card"
+                onClick={() => navigate("/ai")}
+              >
+                <div className="ai-icon">AI</div>
+                <div className="ai-feature-content">
+                  <h2>
+                    Smart AI Healthy Food Suggestion
+                    <span className="top-ai-helper">
+                      (Get food items and recipes recommended by AI through health
+                      status)
+                    </span>
+                  </h2>
+                  <div className="top-ai-arrow-build" aria-hidden="true" />
+                </div>
+              </button>
+          </div>
 
           <div className="topbar-right">
             <div className="user-panel">
-              <span className="username-text">{username}</span>
+              <div className="user-badge-row">
+                <span className="mini-label username-label">Username</span>
+                <strong className="current-mode-value username-value">{username}</strong>
+                
+              </div>
               <button
-                type="button"
-                className="logout-btn logout-danger"
-                onClick={handleLogout}
-              >
-                Logout
-              </button>
+                  type="button"
+                  className="logout-btn logout-action-btn"
+                  onClick={handleLogout}
+                  aria-label="Logout"
+                  title="Logout"
+                >
+                  ⏻
+                </button>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="dashboard-highlight-row">
-        <div className={`highlight-shell highlight-shell-left ${activeHighlight === 0 ? "active" : ""}`}>
-          <div className="card stats-card">
-            <h2>Total Today Expense</h2>
-            <p>{rupeeSymbol}{todayExpense.toFixed(2)}</p>
-          </div>
-        </div>
-
-        <div className={`highlight-shell highlight-shell-center ${activeHighlight === 1 ? "active" : ""}`}>
-          <button
-            type="button"
-            className="ai-feature-card"
-            onClick={() => navigate("/ai")}
-          >
-            <div className="ai-icon">AI</div>
-            <div className="ai-feature-content">
-              <h2>Smart AI Healthy Food Suggestion</h2>
-              <p>Open future AI-based food items, recipe and nutrition recommendations</p>
+      <div className="dashboard-highlight-row dashboard-summary-row">
+          <div className="highlight-shell highlight-shell-left">
+            <div className="card stats-card">
+              <h2>Total Today Expense</h2>
+              <p>{rupeeSymbol}{todayExpense.toFixed(2)}</p>
             </div>
-            <span className="ai-arrow">{"->"}</span>
-          </button>
-        </div>
-
-        <div className={`highlight-shell highlight-shell-right ${activeHighlight === 2 ? "active" : ""}`}>
-          <div className="card stats-card">
-            <h2>Total Monthly Expense</h2>
-            <p>{rupeeSymbol}{monthlyExpense.toFixed(2)}</p>
           </div>
-        </div>
+
+          <div className="highlight-shell highlight-shell-right">
+            <div className="card stats-card">
+              <h2>Total Monthly Expense</h2>
+              <p>{rupeeSymbol}{monthlyExpense.toFixed(2)}</p>
+            </div>
+          </div>
       </div>
 
       <div className="item-form-section"> 
