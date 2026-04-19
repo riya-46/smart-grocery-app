@@ -4,11 +4,14 @@ Smart Grocery Management is a full-stack grocery tracking application built with
 
 The application now supports real multi-user behavior. Different users can register, log in later, and continue seeing only their own grocery records and expense history.
 
+The same authenticated user's data stays consistent across laptop and mobile logins because the dashboard reads from and writes to the backend database, not device-specific local storage.
+
 ## What This Project Does
 
 - lets users create their own account
 - keeps login protected with hashed passwords and JWT authentication
 - stores grocery records per authenticated user
+- keeps the same user's grocery history shared across mobile and laptop sessions
 - tracks item-level spending by date and by mode
 - shows expense summaries, calendar highlights, pie chart distribution, and trend graphs
 - provides a responsive dashboard for desktop and mobile
@@ -45,12 +48,13 @@ The application now supports real multi-user behavior. Different users can regis
   - Party
   - Guest
   - Festival
-- total today expense
-- total monthly expense
-- mode-wise expense pie chart
-- total expense trend graph
+- total selected-day expense across all modes
+- total selected-month expense across all modes
+- mode-wise expense pie chart for the selected day or month
+- overall daily or monthly expense trend graph across all modes
 - calendar-based date selection
 - item filtering by mode
+- calendar tile expense based on the currently selected item-list mode
 
 ### Interface and UX
 
@@ -150,6 +154,8 @@ This app is designed to behave as a multi-user application.
 - each authenticated user sees only their own grocery records
 - expenses, items, charts, and calendar summaries are derived from that user's data only
 - logging out one user does not merge their records with another user
+- the same user sees the same records on mobile and laptop after logging in
+- the dashboard refreshes data again when the tab regains focus and during active use
 
 ## Grocery Data Ownership
 
@@ -195,6 +201,17 @@ Rules:
 - never commit it to GitHub
 - keep it in local `.env` and deployment dashboards only
 - if it gets exposed, replace it immediately
+
+## GitHub Push Notes
+
+These files are already excluded by the root `.gitignore`:
+
+- local `.env` files
+- `node_modules`
+- build output such as `dist`
+- local log files
+
+Before pushing, commit only source code, lockfiles, config files, and `.env.example` templates.
 
 ## Local Setup
 
@@ -308,7 +325,7 @@ Response shape:
 {
   "token": "<jwt_token>",
   "user": {
-    "_id": "...",
+    "id": "...",
     "name": "Riya",
     "email": "riya@example.com"
   }
@@ -352,6 +369,10 @@ DELETE /api/groceries/:id
 - registration keeps the user on the auth screen
 - after successful registration, the user must log in manually
 - logout asks for confirmation before clearing the session
+- total daily and monthly expense cards are calculated across all modes for the selected calendar period
+- the line graph shows overall expense trends across all modes
+- the pie chart shows mode-wise distribution for the selected day or month
+- calendar date tiles show expense for the currently selected item-list mode
 - the home dashboard is styled primarily for light mode
 - dark mode uses a calmer professional treatment
 - the login page has been visually aligned with the dashboard style
@@ -463,6 +484,7 @@ This project now includes:
 - JWT authentication
 - protected grocery routes
 - user-specific grocery and expense records
+- same-user data continuity across mobile and laptop logins
 - responsive UI for desktop and mobile
 - light and dark theme support
 - deployment-ready frontend and backend structure
