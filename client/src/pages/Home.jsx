@@ -24,6 +24,35 @@ const PIE_INNER_RADIUS = 54;
 const PIE_LABEL_RADIAN = Math.PI / 180;
 const MAX_VISIBLE_ITEMS = 5;
 
+const getGroceriesCacheKey = (userId) => `smartgrocery_items_${userId}`;
+
+const readCachedGroceries = (userId) => {
+  try {
+    if (!userId) return [];
+
+    const parsed = JSON.parse(
+      localStorage.getItem(getGroceriesCacheKey(userId)) || "[]"
+    );
+
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeCachedGroceries = (userId, nextItems) => {
+  try {
+    if (!userId) return;
+
+    localStorage.setItem(
+      getGroceriesCacheKey(userId),
+      JSON.stringify(nextItems)
+    );
+  } catch {
+    // Ignore storage write failures and keep UI responsive.
+  }
+};
+
 function Home() {
   const apiBaseUrl = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
   const API_URL = `${
@@ -49,7 +78,9 @@ function Home() {
   const [unit, setUnit] = useState("");
   const [price, setPrice] = useState("");
 
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() =>
+    readCachedGroceries(currentUser?.id)
+  );
   const [listMode, setListMode] = useState("Family");
   const [pieView, setPieView] = useState("Daily");
   const [graphView, setGraphView] = useState("Daily");
@@ -60,6 +91,7 @@ function Home() {
   const itemListSectionRef = useRef(null);
   const modeChartSectionRef = useRef(null);
   const totalGraphSectionRef = useRef(null);
+  const mutationVersionRef = useRef(0);
   const [pieBoxSize, setPieBoxSize] = useState({ width: 0, height: 0 });
   const [lineBoxWidth, setLineBoxWidth] = useState(0);
   const [itemListMaxHeight, setItemListMaxHeight] = useState(null);
@@ -69,9 +101,12 @@ function Home() {
   const [editQuantity, setEditQuantity] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [dataRefreshTick, setDataRefreshTick] = useState(0);
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [savingItemId, setSavingItemId] = useState(null);
 
   const [username] = useState(currentUser?.name || "User");
   const activeMode = listMode === "All" ? mode : listMode;
+  const currentUserId = currentUser?.id || "";
 
   const formatDate = (dateObj) => {
     return dateObj.toLocaleDateString("en-GB");
@@ -181,6 +216,23 @@ function Home() {
     [authToken]
   );
 
+  const commitItems = (nextItemsOrUpdater) => {
+    setItems((prevItems) => {
+      const nextItems =
+        typeof nextItemsOrUpdater === "function"
+          ? nextItemsOrUpdater(prevItems)
+          : nextItemsOrUpdater;
+
+      writeCachedGroceries(currentUserId, nextItems);
+      return nextItems;
+    });
+  };
+
+  const beginMutation = () => {
+    mutationVersionRef.current += 1;
+    return mutationVersionRef.current;
+  };
+
   const handleAddItem = async (e) => {
     e.preventDefault();
 
@@ -188,6 +240,9 @@ function Home() {
       alert("Please fill all fields");
       return;
     }
+
+    let formSnapshot = null;
+    let tempId = "";
 
     try {
       if (!authToken) {
@@ -204,27 +259,79 @@ function Home() {
         mode: activeMode,
         selectedDate: formatDate(selectedDate),
       };
+      formSnapshot = { itemName, quantity, unit, price };
+      tempId = `temp-${Date.now()}`;
+      beginMutation();
+      const optimisticItem = {
+        ...newItem,
+        _id: tempId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-      const response = await axios.post(API_URL, newItem, authConfig);
-
-      setItems((prev) => [response.data, ...prev]);
-
+      setIsAddingItem(true);
+      commitItems((prevItems) => [optimisticItem, ...prevItems]);
       setItemName("");
       setQuantity("");
       setUnit("");
       setPrice("");
       scrollToSection(itemListSectionRef);
+
+      const response = await axios.post(API_URL, newItem, authConfig);
+
+      commitItems((prevItems) =>
+        prevItems.map((item) => (item._id === tempId ? response.data : item))
+      );
     } catch (error) {
+      commitItems((prevItems) =>
+        prevItems.filter((item) => item._id !== tempId)
+      );
+      if (formSnapshot) {
+        setItemName(formSnapshot.itemName);
+        setQuantity(formSnapshot.quantity);
+        setUnit(formSnapshot.unit);
+        setPrice(formSnapshot.price);
+      }
       console.error("Error adding grocery item:", error);
       alert("Failed to add item");
+    } finally {
+      setIsAddingItem(false);
     }
   };
 
   const handleDeleteItem = async (id) => {
+    let deletedIndex = -1;
+    let deletedItem = null;
+
     try {
+      if (!authToken) {
+        alert("Please login again");
+        navigate("/");
+        return;
+      }
+
+      deletedIndex = items.findIndex((item) => item._id === id);
+      deletedItem = items[deletedIndex];
+
+      if (!deletedItem) {
+        return;
+      }
+
+      beginMutation();
+      commitItems((prevItems) => prevItems.filter((item) => item._id !== id));
       await axios.delete(`${API_URL}/${id}`, authConfig);
-      setItems((prev) => prev.filter((item) => item._id !== id));
     } catch (error) {
+      if (typeof deletedIndex === "number" && deletedIndex >= 0 && deletedItem) {
+        commitItems((prevItems) => {
+          if (prevItems.some((item) => item._id === deletedItem._id)) {
+            return prevItems;
+          }
+
+          const nextItems = [...prevItems];
+          nextItems.splice(Math.min(deletedIndex, nextItems.length), 0, deletedItem);
+          return nextItems;
+        });
+      }
       console.error("Error deleting grocery item:", error);
       alert("Failed to delete item");
     }
@@ -243,6 +350,9 @@ function Home() {
       return;
     }
 
+    let previousItem = null;
+    let editDraft = null;
+
     try {
       if (!authToken) {
         alert("Please login again");
@@ -250,25 +360,52 @@ function Home() {
         return;
       }
 
-      const updatedItem = {
+      previousItem = items.find((item) => item._id === id);
+
+      if (!previousItem) {
+        return;
+      }
+
+      editDraft = {
         itemName: editName.trim(),
         quantity: Number(editQuantity),
         price: Number(editPrice),
       };
+      const updatedItem = {
+        ...editDraft,
+      };
+      const optimisticItem = {
+        ...previousItem,
+        ...updatedItem,
+      };
 
-      const response = await axios.put(`${API_URL}/${id}`, updatedItem, authConfig);
-
-      setItems((prev) =>
-        prev.map((item) => (item._id === id ? response.data : item))
+      beginMutation();
+      setSavingItemId(id);
+      commitItems((prevItems) =>
+        prevItems.map((item) => (item._id === id ? optimisticItem : item))
       );
-
       setEditingId(null);
       setEditName("");
       setEditQuantity("");
       setEditPrice("");
+
+      const response = await axios.put(`${API_URL}/${id}`, updatedItem, authConfig);
+
+      commitItems((prevItems) =>
+        prevItems.map((item) => (item._id === id ? response.data : item))
+      );
     } catch (error) {
+      commitItems((prevItems) =>
+        prevItems.map((item) => (item._id === id ? previousItem : item))
+      );
+      setEditingId(id);
+      setEditName(editDraft.itemName);
+      setEditQuantity(String(editDraft.quantity));
+      setEditPrice(String(editDraft.price));
       console.error("Error updating grocery item:", error);
       alert("Failed to update item");
+    } finally {
+      setSavingItemId(null);
     }
   };
 
@@ -538,6 +675,8 @@ function Home() {
   }, []);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const fetchGroceries = async () => {
       try {
         if (!authToken) {
@@ -545,9 +684,19 @@ function Home() {
           return;
         }
 
+        const fetchVersion = mutationVersionRef.current;
         const response = await axios.get(API_URL, authConfig);
-        setItems(response.data);
+
+        if (isCancelled || mutationVersionRef.current !== fetchVersion) {
+          return;
+        }
+
+        commitItems(response.data);
       } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
         console.error("Error fetching groceries:", error);
         if (error.response?.status === 401) {
           localStorage.removeItem("smartgrocery_token");
@@ -558,7 +707,11 @@ function Home() {
     };
 
     fetchGroceries();
-  }, [API_URL, authConfig, authToken, dataRefreshTick, navigate]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [API_URL, authConfig, authToken, currentUserId, dataRefreshTick, navigate]);
 
   useEffect(() => {
     const node = pieBoxRef.current;
@@ -642,6 +795,7 @@ function Home() {
                 <span className="title-line">Smart Grocery</span>
                 <span className="title-line">Management</span>
               </h1>
+              <p className="header-description">Track groceries with less friction.</p>
             </div>
 
             <div className="header-actions">
@@ -657,8 +811,6 @@ function Home() {
               </button>
             </div>
           </div>
-
-          <p className="header-description">Track groceries with less friction.</p>
         </header>
 
         <section className="mode-toolbar">
@@ -744,6 +896,7 @@ function Home() {
                   type="text"
                   placeholder="Item Name"
                   value={itemName}
+                  disabled={isAddingItem}
                   onChange={(e) => setItemName(e.target.value)}
                 />
 
@@ -752,12 +905,14 @@ function Home() {
                   step="0.01"
                   placeholder="Quantity"
                   value={quantity}
+                  disabled={isAddingItem}
                   onChange={(e) => setQuantity(e.target.value)}
                 />
 
                 <select
                   className={!unit ? "placeholder-select" : ""}
                   value={unit}
+                  disabled={isAddingItem}
                   onChange={(e) => setUnit(e.target.value)}
                 >
                   <option value="" disabled>
@@ -776,11 +931,12 @@ function Home() {
                   step="0.01"
                   placeholder="Price"
                   value={price}
+                  disabled={isAddingItem}
                   onChange={(e) => setPrice(e.target.value)}
                 />
 
-                <button type="submit" className="primary-btn">
-                  Add Item
+                <button type="submit" className="primary-btn" disabled={isAddingItem}>
+                  {isAddingItem ? "Adding..." : "Add Item"}
                 </button>
               </form>
             </article>
@@ -864,13 +1020,15 @@ function Home() {
                             <button
                               type="button"
                               className="action-btn update-btn"
+                              disabled={savingItemId === item._id}
                               onClick={() => handleSaveEdit(item._id)}
                             >
-                              Save
+                              {savingItemId === item._id ? "Saving..." : "Save"}
                             </button>
                             <button
                               type="button"
                               className="action-btn cancel-btn"
+                              disabled={savingItemId === item._id}
                               onClick={handleCancelEdit}
                             >
                               Cancel
@@ -891,13 +1049,15 @@ function Home() {
                             <button
                               type="button"
                               className="action-btn update-btn"
+                              disabled={savingItemId === item._id}
                               onClick={() => handleEditClick(item)}
                             >
-                              Update
+                              {savingItemId === item._id ? "Updating..." : "Update"}
                             </button>
                             <button
                               type="button"
                               className="action-btn delete-btn"
+                              disabled={savingItemId === item._id}
                               onClick={() => handleDeleteItem(item._id)}
                             >
                               Delete

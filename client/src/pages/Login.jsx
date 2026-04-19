@@ -26,6 +26,7 @@ function Login() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isAuthPending, setIsAuthPending] = useState(false);
   const authPanelRef = useRef(null);
 
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ function Login() {
     });
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     if (!email || !password) {
@@ -52,26 +53,26 @@ function Login() {
       return;
     }
 
-    const loginUser = async () => {
-      try {
-        const response = await axios.post(`${AUTH_API_URL}/login`, {
-          email: email.trim().toLowerCase(),
-          password,
-        });
+    try {
+      setIsAuthPending(true);
 
-        localStorage.setItem("smartgrocery_token", response.data.token);
-        localStorage.setItem(
-          "smartgrocery_user",
-          JSON.stringify(response.data.user)
-        );
+      const response = await axios.post(`${AUTH_API_URL}/login`, {
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-        navigate("/home");
-      } catch (error) {
-        alert(error.response?.data?.message || "Login failed");
-      }
-    };
+      localStorage.setItem("smartgrocery_token", response.data.token);
+      localStorage.setItem(
+        "smartgrocery_user",
+        JSON.stringify(response.data.user)
+      );
 
-    loginUser();
+      navigate("/home", { replace: true });
+    } catch (error) {
+      alert(error.response?.data?.message || "Login failed");
+    } finally {
+      setIsAuthPending(false);
+    }
   };
 
   const openLogin = (shouldScroll = false) => {
@@ -93,7 +94,7 @@ function Login() {
     }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
 
     if (!name || !email || !password) {
@@ -101,22 +102,22 @@ function Login() {
       return;
     }
 
-    const registerUser = async () => {
-      try {
-        await axios.post(`${AUTH_API_URL}/register`, {
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          password,
-        });
-        alert("Account created successfully. Please login to continue.");
-        openLogin();
-        setEmail(email.trim().toLowerCase());
-      } catch (error) {
-        alert(error.response?.data?.message || "Registration failed");
-      }
-    };
+    try {
+      setIsAuthPending(true);
 
-    registerUser();
+      await axios.post(`${AUTH_API_URL}/register`, {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      alert("Account created successfully. Please login to continue.");
+      openLogin();
+      setEmail(email.trim().toLowerCase());
+    } catch (error) {
+      alert(error.response?.data?.message || "Registration failed");
+    } finally {
+      setIsAuthPending(false);
+    }
   };
 
   return (
@@ -144,6 +145,7 @@ function Login() {
             <button
               type="button"
               className={`auth-jump-link ${!isLogin ? "active" : ""}`}
+              disabled={isAuthPending}
               onClick={() => openRegister(true)}
               aria-pressed={!isLogin}
             >
@@ -152,6 +154,7 @@ function Login() {
             <button
               type="button"
               className={`auth-jump-link ${isLogin ? "active" : ""}`}
+              disabled={isAuthPending}
               onClick={() => openLogin(true)}
               aria-pressed={isLogin}
             >
@@ -196,6 +199,7 @@ function Login() {
                   type="text"
                   placeholder="Enter your name"
                   value={name}
+                  disabled={isAuthPending}
                   onChange={(e) => setName(e.target.value)}
                 />
               )}
@@ -204,6 +208,7 @@ function Login() {
                 type="email"
                 placeholder="Enter your email"
                 value={email}
+                disabled={isAuthPending}
                 onChange={(e) => setEmail(e.target.value)}
               />
 
@@ -211,10 +216,19 @@ function Login() {
                 type="password"
                 placeholder={isLogin ? "Enter your password" : "Create password"}
                 value={password}
+                disabled={isAuthPending}
                 onChange={(e) => setPassword(e.target.value)}
               />
 
-              <button type="submit">{isLogin ? "Login" : "Register"}</button>
+              <button type="submit" disabled={isAuthPending}>
+                {isAuthPending
+                  ? isLogin
+                    ? "Logging in..."
+                    : "Creating account..."
+                  : isLogin
+                    ? "Login"
+                    : "Register"}
+              </button>
             </form>
 
             <p className="switch-text auth-switch-text">
@@ -222,6 +236,7 @@ function Login() {
               <button
                 type="button"
                 className="auth-inline-btn"
+                disabled={isAuthPending}
                 onClick={isLogin ? openRegister : openLogin}
               >
                 {isLogin ? "Create Account" : "Login"}
